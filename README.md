@@ -1,17 +1,17 @@
 # Binary-Instrumentation-2 Pico-CTF
 I've been learning more Windows API functions to do my bidding. Hmm... I swear this program was supposed to create a file and write the flag directly to the file. Can you try and intercept the file writing function to see what went wrong?
 
-## Exploration
+# Exploration
 
-O `bininst2.exe` se apresenta como um programa que deveria criar um arquivo e escrever a flag dentro dele, mas na prática nunca faz isso. A razão só fica clara quando você para de olhar para o que o binário *faz* e começa a olhar para o que ele *carrega*.
+bininst2.exe presents itself as a program that should create a file and write the flag into it, but in practice it never does. The reason only becomes clear when you stop looking at what the binary *does* and start looking at what it *carries*.
 
-O executável principal funciona como um loader — seu verdadeiro propósito é desempacotar e executar um segundo binário que está escondido dentro dele, comprimido com LZMA na seção `.ATOM`. Essa seção não faz parte do padrão PE, o que já é um sinal imediato de que algo foi deliberadamente embutido ali. Os dados começam com o byte `0x5D`, que é a assinatura do formato LZMA, seguido das informações de tamanho e dicionário típicas desse algoritmo. Descomprimindo esse conteúdo, obtém-se um segundo executável Windows completo de 11 KB.
+The main executable works as a loader its real purpose is to unpack and run a second binary hidden inside it, compressed with LZMA in the .ATOM section. This section is not part of the standard PE format, which is an immediate sign that something was deliberately embedded there. The data starts with the byte 0x5D, which is the LZMA format signature, followed by the dictionary size and uncompressed size fields typical of that algorithm. Decompressing that content yields a complete second Windows executable of 11 KB.
 
-É nesse executável interno que a lógica real do desafio está. Ele importa `CreateFileA` e `WriteFile` do `KERNEL32.dll` — as funções que deveriam criar o arquivo e escrever a flag. O problema está no argumento passado para `CreateFileA`: o caminho do arquivo é literalmente a string `<Insert path here>`, um placeholder que o desenvolvedor esqueceu de substituir. Como esse caminho é inválido, a função falha silenciosamente, retorna um handle inválido, e `WriteFile` nunca consegue escrever nada. A flag simplesmente nunca chega ao disco.
+That internal executable is where the actual challenge logic lives. It imports CreateFileA and WriteFile from KERNEL32.dll the functions that should create the file and write the flag. The problem is in the argument passed to CreateFileA: the file path is literally the string <Insert path here>, a placeholder the developer forgot to replace. Since that path is invalid, the function fails silently, returns an invalid handle, and WriteFile never gets to write anything. The flag simply never reaches disk.
 
-O que torna o desafio interessante é que a flag não precisava ser interceptada em execução — ela já estava lá, embutida em Base64 diretamente no código do executável interno, esperando para ser lida. Decodificando a string, a flag aparece imediatamente.
+What makes the challenge interesting is that the flag did not need to be intercepted at runtime it was already there, embedded as Base64 directly in the internal executable's code, just waiting to be read. Decoding the string reveals the flag immediately.
 
-A exploração inteira gira em torno de perceber que o binário entregue não é o binário que importa, e que o bug não está na lógica de escrita em si, mas num detalhe tão simples quanto um caminho de arquivo que nunca foi preenchido.
+The entire exploitation comes down to realizing that the binary you are given is not the binary that matters, and that the bug is not in the write logic itself, but in something as simple as a file path that was never filled in.
 
 # Ghidra Analysis
 
